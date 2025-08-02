@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P&P Scouting Report</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js for Radar Chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- html2pdf.js for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Stili generali dell'applicazione (invariati) */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        #main-container {
+            background-color: #1e3563;
+        }
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none; width: 100%; height: 8px;
+            border-radius: 5px; background: #e0e0e0; outline: none; opacity: 0.9;
+            transition: opacity .2s;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+            border-radius: 50%; background: #1e3563; cursor: pointer;
+            border: 2px solid white; box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%; background: #1e3563;
+            cursor: pointer; border: 2px solid white;
+        }
+        .section-title {
+            font-size: 1.25rem; font-weight: 700; color: #1e3563;
+            margin-top: 1.5rem; margin-bottom: 1rem; border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5rem;
+        }
+        .judgement-radio { display: none; }
+        .judgement-label {
+            display: inline-block; padding: 0.5rem 1.5rem; border: 2px solid #e0e0e0;
+            border-radius: 9999px; cursor: pointer; transition: all 0.2s ease-in-out;
+            font-weight: 600;
+        }
+        /* Nuovi stili per colorare i giudizi */
+        #judgement-a:checked ~ .judgement-label-a { background-color: #4ade80; border-color: #4ade80; color: white; }
+        #judgement-b:checked ~ .judgement-label-b { background-color: #a3e635; border-color: #a3e635; color: #3f6212; }
+        #judgement-c:checked ~ .judgement-label-c { background-color: #facc15; border-color: #facc15; color: #713f12; }
+        #judgement-d:checked ~ .judgement-label-d { background-color: #f87171; border-color: #f87171; color: white; }
+
+        #football-pitch {
+            background-color: #1e3563;
+            border: 3px solid white;
+            position: relative;
+            aspect-ratio: 7 / 10;
+        }
+        .pitch-line { background-color: white; position: absolute; }
+        .center-circle { border: 3px solid white; border-radius: 50%; position: absolute; }
+        .penalty-box { border: 3px solid white; position: absolute; }
+        .player-marker {
+            position: absolute;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.9);
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 12px rgba(0,0,0,0.7);
+        }
+        #marker-primario { width: 40px; height: 40px; background-color: #13f688; }
+        #marker-secondario { width: 32px; height: 32px; background-color: #d3f8c3; }
+        #marker-altro { width: 24px; height: 24px; background-color: #efffe8; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1e3563;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #ai-modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+        }
+        #ai-modal {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .performance-select {
+            transition: background-color 0.3s ease;
+        }
+
+        /* STILI PER IL TEMPLATE PDF E ANTEPRIMA */
+        #pdf-export-template {
+            display: none; /* Il template è nascosto di default */
+            font-family: 'Inter', sans-serif;
+            color: #333;
+        }
+        .pdf-page {
+            width: 210mm;
+            min-height: 297mm; /* Altezza A4 */
+            padding: 10mm;
+            margin: 0 auto;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+        .pdf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #1e3563;
+            padding-bottom: 10px;
+        }
+        .pdf-logo {
+            font-size: 24pt;
+            font-weight: 700;
+            color: #1e3563;
+        }
+        .pdf-logo span {
+            font-weight: 400;
+        }
+        .pdf-header-info {
+            text-align: right;
+            font-size: 9pt;
+        }
+        .pdf-main-title {
+            text-align: center;
+            font-size: 16pt;
+            font-weight: 600;
+            margin: 15px 0;
+            color: #1e3563;
+        }
+        .pdf-section {
+            margin-bottom: 15px;
+        }
+        .pdf-section-title {
+            font-size: 12pt;
+            font-weight: 700;
+            color: #1e3563;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+        }
+        .pdf-grid-2-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .pdf-info-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+        }
+        .pdf-info-table td {
+            padding: 5px;
+            border: 1px solid #e0e0e0;
+        }
+        .pdf-info-table td:first-child {
+            font-weight: 600;
+            background-color: #f7fafc;
+            width: 40%;
+        }
+        .pdf-skills-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .pdf-skill-category-title {
+            font-size: 10pt;
+            font-weight: 700;
+            color: white;
+            background-color: #1e3563;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+        .pdf-skill-table {
+            width: 100%;
+            font-size: 8.5pt;
+            border-collapse: collapse;
+        }
+        .pdf-skill-table td {
+            padding: 3px 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .pdf-skill-table td:last-child {
+            font-weight: 700;
+            text-align: center;
+            width: 40px;
+        }
+        .pdf-value-box {
+            display: inline-block;
+            width: 30px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            color: white;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .pdf-visuals-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .pdf-chart-container, .pdf-pitch-container {
+            text-align: center;
+        }
+        .pdf-chart-container img, .pdf-pitch-container img {
+            max-width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        .pdf-notes-box {
+            font-size: 9pt;
+            border: 1px solid #e0e0e0;
+            background-color: #f7fafc;
+            padding: 8px;
+            margin-top: 5px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border-radius: 4px;
+        }
+        .pdf-judgement-container {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            padding: 10px 0;
+        }
+        .pdf-judgement-item .label {
+            font-size: 9pt;
+            font-weight: 600;
+            color: #555;
+        }
+        .pdf-judgement-item .value {
+            font-size: 20pt;
+            font-weight: 700;
+            color: #1e3563;
+        }
+        .pdf-judgement-item .value.final-judgement {
+            border: 3px solid #1e3563;
+            width: 45px;
+            height: 45px;
+            line-height: 39px;
+            border-radius: 50%;
+            margin: 0 auto;
+        }
+        #summary-container {
+            border: 2px dashed #1e3563;
+            padding: 20px;
+            margin-top: 30px;
+            background-color: #f8fafc;
+            border-radius: 1rem;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8" id="main-container">
+
+    <div id="report-container" class="max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl p-6 md:p-10">
+        
+        <header class="relative text-center mb-8">
+            <h1 class="text-4xl font-bold text-[#1e3563]">P&P Scouting Report</h1>
+        </header>
+
+        <!-- Contenuto dell'app (invariato) -->
+        <!-- Dati Giocatore -->
+        <section id="player-info">
+            <h2 class="section-title">Dati Giocatore</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="flex flex-col"><label for="nome" class="font-semibold text-gray-700 mb-1">Nome e Cognome</label><input type="text" id="nome" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+                <div class="flex flex-col"><label for="annoNascita" class="font-semibold text-gray-700 mb-1">Anno di Nascita</label><input type="number" id="annoNascita" placeholder="Es. 2005" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+                <div class="flex flex-col"><label for="eta" class="font-semibold text-gray-700 mb-1">Età (Automatica)</label><input type="text" id="eta" class="p-2 border border-gray-300 rounded-md bg-gray-100" readonly></div>
+                <div class="flex flex-col"><label for="altezza" class="font-semibold text-gray-700 mb-1">Altezza (cm)</label><input type="number" id="altezza" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+                <div class="flex flex-col"><label for="piede" class="font-semibold text-gray-700 mb-1">Piede</label><select id="piede" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"><option>Destro</option><option>Sinistro</option><option>Ambidestro</option></select></div>
+                <div class="flex flex-col"><label for="nazionalita" class="font-semibold text-gray-700 mb-1">Nazionalità</label><div class="flex items-center gap-2"><input type="text" id="nazionalita" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"><div class="flex items-center gap-1"><input type="checkbox" id="is-eu" class="h-4 w-4 rounded"><label for="is-eu">EU</label></div></div></div>
+                <div class="flex flex-col"><label for="club" class="font-semibold text-gray-700 mb-1">Club Attuale</label><input type="text" id="club" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+                <div class="flex flex-col"><label for="club-status" class="font-semibold text-gray-700 mb-1">Status Club</label><select id="club-status" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"><option>-</option><option>Stella</option><option>Titolare</option><option>Giocatore di rotazione</option><option>Riserva</option><option>Promessa</option><option>Esubero</option></select></div>
+                <div class="flex flex-col"><label class="font-semibold text-gray-700 mb-1">Nazionale</label><div class="flex items-center gap-2"><input type="checkbox" id="has-national-team" class="h-5 w-5 rounded"><label for="has-national-team">Convocato in Nazionale</label></div></div>
+                <div id="national-status-container" class="flex flex-col" style="display: none;"><label for="national-status" class="font-semibold text-gray-700 mb-1">Status Nazionale</label><select id="national-status" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"><option>-</option><option>Stella</option><option>Titolare</option><option>Giocatore di rotazione</option><option>Convocato sporadicamente</option></select></div>
+                <div class="lg:col-span-4 mt-4"><h3 class="font-semibold text-gray-700 mb-2">Campionato</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center"><div class="flex flex-col"><label class="font-medium text-sm mb-1">Pro</label><select id="campionato-pro" class="p-2 border rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none bg-[#1e3563] text-white"><option>-</option><option>1 Divisione</option><option>2 Divisione</option><option>3 Divisione</option><option>4 Divisione</option></select></div><div class="flex flex-col"><label class="font-medium text-sm mb-1">Giovanile</label><select id="campionato-giovanile" class="p-2 border rounded-md focus:ring-2 focus:ring-green-600 focus:outline-none bg-green-600 text-white"><option>-</option><option>U20</option><option>U19</option><option>U18</option><option>U17</option><option>U16</option><option>U15</option><option>U14</option></select></div><div class="flex items-center gap-2 pt-5"><input type="checkbox" id="sotto-eta" class="h-5 w-5 rounded"><label for="sotto-eta">Sotto età</label></div></div></div>
+            </div>
+        </section>
+
+        <!-- Ruolo e Archetipo -->
+        <section id="role-archetype" class="mt-8">
+             <h2 class="section-title">Ruolo e Archetipo</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="flex flex-col"><label for="ruolo-primario" class="font-semibold text-gray-700 mb-1">Ruolo Primario</label><select id="ruolo-primario" class="role-selector p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></select></div>
+                <div class="flex flex-col"><label for="ruolo-secondario" class="font-semibold text-gray-700 mb-1">Ruolo Secondario</label><select id="ruolo-secondario" class="role-selector p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></select></div>
+                <div class="flex flex-col"><label for="altro-ruolo" class="font-semibold text-gray-700 mb-1">Altro Ruolo</label><select id="altro-ruolo" class="role-selector p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></select></div>
+                <div class="flex flex-col"><label for="archetipo" class="font-semibold text-gray-700 mb-1">Archetipo Ruolo</label><select id="archetipo" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"><option>-</option></select></div>
+            </div>
+        </section>
+
+        <!-- Profilo Visivo -->
+        <section class="mt-8">
+            <h2 class="section-title">Profilo Visivo</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div id="radar-chart-container" class="w-full max-w-md mx-auto p-4 bg-gray-50 rounded-lg">
+                    <canvas id="radarChart"></canvas>
+                </div>
+                <div class="w-full max-w-xs mx-auto">
+                    <div id="football-pitch">
+                        <div class="pitch-line" style="top: 50%; left: 0; width: 100%; height: 3px;"></div>
+                        <div class="center-circle" style="top: 50%; left: 50%; width: 25%; height: 18%; transform: translate(-50%, -50%);"></div>
+                        <div class="penalty-box" style="top: 0; left: 50%; width: 60%; height: 20%; transform: translateX(-50%);"></div>
+                        <div class="penalty-box" style="bottom: 0; left: 50%; width: 60%; height: 20%; transform: translateX(-50%);"></div>
+                        <div id="marker-primario" class="player-marker" style="display: none;"></div>
+                        <div id="marker-secondario" class="player-marker" style="display: none;"></div>
+                        <div id="marker-altro" class="player-marker" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Analisi Tattica -->
+        <section id="tactical-analysis" class="mt-8">
+            <h2 class="section-title">Analisi Tattica</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                <div class="flex flex-col">
+                    <label for="tactical-module" class="font-semibold text-gray-700 mb-1">Modulo di gioco osservato</label>
+                    <select id="tactical-module" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none">
+                        <option>-</option><option>4-3-3</option><option>4-4-2</option><option>3-5-2</option><option>4-2-3-1</option><option>3-4-3</option><option>5-3-2</option>
+                    </select>
+                </div>
+                 <div class="flex flex-col">
+                    <label for="tactical-style" class="font-semibold text-gray-700 mb-1">Stile di gioco</label>
+                    <select id="tactical-style" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none">
+                        <option>-</option>
+                        <option>Possesso Palla / Tiki‑Taka</option>
+                        <option>Contropiede / Transition-based</option>
+                        <option>Gegenpressing / Pressing Intensivo</option>
+                        <option>Long Ball / Gioco Diretto</option>
+                        <option>Ultra‑difesa / Catenaccio</option>
+                        <option>Attacco in Ampiezza / Wing‑Play</option>
+                    </select>
+                </div>
+                <div class="flex flex-col">
+                    <label for="composite-style" class="font-semibold text-gray-700 mb-1">Stile Composito</label>
+                    <select id="composite-style" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none">
+                        <option>-</option>
+                        <option value="Maintenance"><b>Maintenance:</b> <i>controllo passivo del possesso</i></option>
+                        <option value="Build Up"><b>Build Up:</b> <i>sviluppo dell’azione tra linea mediana e difesa</i></option>
+                        <option value="Sustained Threat"><b>Sustained Threat:</b> <i>possesso prolungato nella trequarti avversaria</i></option>
+                        <option value="Fast Tempo"><b>Fast Tempo:</b> <i>movimenti rapidi con passaggi veloci &lt; 2s</i></option>
+                        <option value="Direct Play"><b>Direct Play:</b> <i>gioco diretto verso la porta tramite passaggi lunghi</i></option>
+                        <option value="Counter Attack"><b>Counter Attack:</b> <i>transizione offensiva rapida dopo riconquista</i></option>
+                        <option value="Crossing"><b>Crossing:</b> <i>attacco da fasce con cross</i></option>
+                        <option value="High Press"><b>High Press:</b> <i>pressione alta per riconquistare palla...</i></option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Valutazione Parametri -->
+        <section id="parameters-evaluation" class="mt-8">
+            <div id="tecnica-params-container">
+                <h2 class="section-title">TECNICA</h2>
+                <div id="tecnica-params">
+                    <div id="tecnica-default">
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Controllo di Palla / Primo Tocco">Controllo di Palla / Primo Tocco</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="controllo-palla"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Passaggio (Corto & Lungo)">Passaggio (Corto & Lungo)</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="passaggio"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Dribbling / Abilità 1v1">Dribbling / Abilità 1v1</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="dribbling"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Tiro (Potenza & Precisione)">Tiro (Potenza & Precisione)</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="tiro"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Finalizzazione">Finalizzazione</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="finalizzazione"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Tackling / Contrasto">Tackling / Contrasto</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="tackling"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Colpo di Testa">Colpo di Testa</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="colpo-testa"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Piede debole">Piede debole</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="piede-debole"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    </div>
+                    <div id="tecnica-portiere" style="display: none;">
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Parate">Parate</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="parate"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Uscite Alte/Basse">Uscite Alte/Basse</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="uscite"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Rinvii / Rilanci / Gioco con i Piedi">Rinvii / Rilanci / Gioco con i Piedi</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="rinvii"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Riflessi / Tuffi / Posizionamento">Riflessi / Tuffi / Posizionamento</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="riflessi"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                        <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Impostazione dal Basso">Impostazione dal Basso</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="impostazione-basso"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    </div>
+                </div>
+            </div>
+            <div id="fisico-atletico-params-container">
+                <h2 class="section-title">FISICO / ATLETICO</h2>
+                <div id="fisico-atletico-params">
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Frequenza di passo">Frequenza di passo</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="frequenza-passo"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Velocità / Accelerazione">Velocità / Accelerazione</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="velocita"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Resistenza / Stamina">Resistenza / Stamina</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="resistenza"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Forza">Forza</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="forza"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Potenza / Esplosività Muscolare">Potenza / Esplosività Muscolare</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="potenza"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Work Rate / Intensità">Work Rate / Intensità</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="work-rate"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Agilità / Cambi di Direzione">Agilità / Cambi di Direzione</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="agilita"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                </div>
+            </div>
+            <div id="tattica-params-container">
+                <h2 class="section-title">TATTICA</h2>
+                <div id="tattica-params">
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Posizionamento Difensivo">Posizionamento Difensivo</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="posizionamento-difensivo"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Posizionamento Offensivo / Smarcamento">Posizionamento Offensivo / Smarcamento</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="posizionamento-offensivo"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Lettura Gioco / Visione di Gioco">Lettura Gioco / Visione di Gioco</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="lettura-gioco"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Versatilità / Intelligenza Tattica">Versatilità / Intelligenza Tattica</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="versatilita"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                </div>
+            </div>
+            <div id="mentale-cognitivo-params-container">
+                <h2 class="section-title">MENTALE / COGNITIVO</h2>
+                <div id="mentale-cognitivo-params">
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Decision Making / Scelta di Tempo">Decision Making / Scelta di Tempo</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="decision-making"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Concentrazione / Focus">Concentrazione / Focus</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="concentrazione"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Creatività / Imprevedibilità">Creatività / Imprevedibilità</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="creativita"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Anticipazioni / Lettura Intenzioni">Anticipazioni / Lettura Intenzioni</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="anticipazioni"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Gestione Pressione Cognitiva / Lucidità">Gestione Pressione Cognitiva / Lucidità</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="gestione-pressione"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                </div>
+            </div>
+            <div id="psicologico-caratteriale-params-container">
+                <h2 class="section-title">PSICOLOGICO / CARATTERIALE</h2>
+                <div id="psicologico-caratteriale-params">
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Mentalità Competitiva / Etica Lavoro">Mentalità Competitiva / Etica Lavoro</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="mentalita-competitiva"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Leadership / Comunicazione">Leadership / Comunicazione</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="leadership"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Resilienza / Gestione Pressione & Errore">Resilienza / Gestione Pressione & Errore</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="resilienza"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Coraggio / Assunzione di Rischio">Coraggio / Assunzione di Rischio</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="coraggio"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                    <div class="param-slider mb-4"><label class="font-medium" data-skill-name="Spirito di Squadra / Atteggiamento">Spirito di Squadra / Atteggiamento</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="spirito-squadra"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Suite di Analisi AI -->
+        <section id="ai-suite" class="mt-8">
+            <h2 class="section-title">Suite di Analisi e Giudizio Finale</h2>
+            <div class="flex items-center gap-2 mb-4 flex-wrap">
+                <label class="font-semibold text-gray-700">Azioni AI:</label>
+                <button id="generate-analysis-btn" title="Genera Analisi Descrittiva" class="ai-btn bg-blue-100 text-blue-800 p-2 rounded-full hover:bg-blue-200 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8-5.8 1.9 5.8 1.9L12 18l1.9-5.8 5.8-1.9-5.8-1.9L12 3zM5 21l1.9-5.8L1 13.3l5.8-1.9L8.7 5l1.9 5.8L16.4 13l-5.8 1.9L8.7 21z"/></svg>
+                </button>
+                <button id="compare-player-btn" title="Confronta Giocatore" class="ai-btn bg-green-100 text-green-800 p-2 rounded-full hover:bg-green-200 transition">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </button>
+                <button id="predict-evolution-btn" title="Prevedi Evoluzione Ruolo" class="ai-btn bg-purple-100 text-purple-800 p-2 rounded-full hover:bg-purple-200 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10c0-4.42-2.87-8.17-6.84-9.5c-1.85-.62-3.83-.83-5.66-.63"/><path d="M17.6 6.2c.4.4.8.8.8 1.3c0 .5-.4 1-1.3 1.3c-.5.2-1.3.2-2.1.2c-1.1 0-2.1-.2-2.9-.5c-.8-.2-1.6-.5-2.1-1c-.5-.5-.8-1.3-.8-2.1c0-1.1.2-2.1.5-2.9c.2-.8.5-1.6 1-2.1c.5-.5 1.3-.8 2.1-.8c1.1 0 2.1.2 2.9.5c.8.2 1.6.5 2.1 1c.5.5.8 1.3.8 2.1Z"/></svg>
+                </button>
+                <button id="market-assessment-btn" title="Valuta Potenziale di Mercato" class="ai-btn bg-yellow-100 text-yellow-800 p-2 rounded-full hover:bg-yellow-200 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </button>
+                <button id="tactical-fit-btn" title="Analizza Compatibilità Tattica" class="ai-btn bg-red-100 text-red-800 p-2 rounded-full hover:bg-red-200 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                 <button id="development-goals-btn" title="Genera Obiettivi di Sviluppo" class="ai-btn bg-teal-100 text-teal-800 p-2 rounded-full hover:bg-teal-200 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                </button>
+                <div id="loader-container" class="loader" style="display: none;"></div>
+            </div>
+            <div id="summary-buttons-container" class="mb-4">
+                <label class="font-semibold text-gray-700 mr-2">Crea Sintesi per:</label>
+                <button data-audience="Allenatore" class="summary-btn text-sm bg-gray-200 text-gray-800 px-3 py-1 rounded-full hover:bg-gray-300 transition">Allenatore</button>
+                <button data-audience="Dirigenza" class="summary-btn text-sm bg-gray-200 text-gray-800 px-3 py-1 rounded-full hover:bg-gray-300 transition">Dirigenza</button>
+                <button data-audience="Agente" class="summary-btn text-sm bg-gray-200 text-gray-800 px-3 py-1 rounded-full hover:bg-gray-300 transition">Agente</button>
+            </div>
+            <label for="note" class="font-semibold text-gray-700 mb-1">Note e Analisi</label>
+            <textarea id="note" rows="6" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none mb-6"></textarea>
+            
+            <!-- Giudizio Finale e Performance -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                 <div class="param-slider"><label class="font-medium" data-skill-name="Abilità Attuale">Abilità Attuale</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="abilita-attuale"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+                 <div class="param-slider"><label class="font-medium" data-skill-name="Abilità Potenziale">Abilità Potenziale</label><div class="flex items-center gap-4"><input type="range" min="0" max="10" value="5" step="0.5" class="skill-slider" id="abilita-potenziale"><span class="font-bold text-lg w-10 text-center">5.0</span></div></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 items-center">
+                 <div>
+                    <label class="font-semibold text-gray-700 mb-3 block">Giudizio Finale</label>
+                    <div class="flex flex-wrap gap-2">
+                        <input type="radio" id="judgement-a" name="giudizio" value="A" class="judgement-radio">
+                        <label for="judgement-a" class="judgement-label judgement-label-a">A</label>
+                        <input type="radio" id="judgement-b" name="giudizio" value="B" class="judgement-radio">
+                        <label for="judgement-b" class="judgement-label judgement-label-b">B</label>
+                        <input type="radio" id="judgement-c" name="giudizio" value="C" class="judgement-radio">
+                        <label for="judgement-c" class="judgement-label judgement-label-c">C</label>
+                        <input type="radio" id="judgement-d" name="giudizio" value="D" class="judgement-radio">
+                        <label for="judgement-d" class="judgement-label judgement-label-d">D</label>
+                    </div>
+                </div>
+                <div class="flex flex-col">
+                    <label for="match-performance" class="font-semibold text-gray-700 mb-1">Performance Partita</label>
+                    <select id="match-performance" class="performance-select p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none">
+                        <option value="-">- Seleziona -</option>
+                        <option value="Dominante">Dominante</option>
+                        <option value="Sopra la media">Sopra la media</option>
+                        <option value="Nella media">Nella media</option>
+                        <option value="Sotto media">Sotto media</option>
+                    </select>
+                </div>
+                <div class="flex flex-col">
+                    <label for="season-performance" class="font-semibold text-gray-700 mb-1">Performance Stagionale</label>
+                    <select id="season-performance" class="performance-select p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none">
+                        <option value="-">- Seleziona -</option>
+                        <option value="Dominante">Dominante</option>
+                        <option value="Sopra la media">Sopra la media</option>
+                        <option value="Nella media">Nella media</option>
+                        <option value="Sotto media">Sotto media</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                 <div class="flex flex-col"><label for="tipo-osservazione" class="font-semibold text-gray-700 mb-1">Tipo Osservazione</label><select id="tipo-osservazione" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"><option>-</option><option>Live</option><option>Video</option></select></div>
+                 <div class="flex flex-col"><label for="partita-osservata" class="font-semibold text-gray-700 mb-1">Partita Osservata</label><input type="text" id="partita-osservata" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div class="flex flex-col"><label for="scout" class="font-semibold text-gray-700 mb-1">Scout</label><input type="text" id="scout" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+                 <div class="flex flex-col"><label for="data-osservazione" class="font-semibold text-gray-700 mb-1">Data Osservazione</label><input type="date" id="data-osservazione" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#1e3563] focus:outline-none"></div>
+            </div>
+        </section>
+
+        <footer class="mt-12 text-center">
+            <div id="export-error" class="text-red-600 font-semibold mb-4 h-6"></div>
+            <button id="save-report-btn" class="bg-[#1e3563] text-white font-bold py-3 px-8 rounded-lg hover:bg-opacity-90 transition-all duration-300 shadow-lg">
+                Salva Report
+            </button>
+        </footer>
+
+        <!-- NUOVO: Contenitore per l'anteprima del report -->
+        <div id="summary-container" class="hidden"></div>
+    </div>
+    
+    <!-- Modal per Funzionalità AI -->
+    <div id="ai-modal-overlay" style="display: none;">
+        <div id="ai-modal">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modal-title" class="text-2xl font-bold text-[#1e3563]"></h3>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            </div>
+            <div id="modal-content" class="text-gray-700 space-y-4">
+                <!-- Il contenuto verrà iniettato qui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Template HTML per l'esportazione (invisibile) -->
+    <div id="pdf-export-template" class="hidden">
+        <div class="pdf-page">
+            <!-- Header -->
+            <header class="pdf-header">
+                <div class="pdf-logo">P&P <span>ACADEMY</span></div>
+                <div class="pdf-header-info">
+                    <strong>Scout:</strong> <span id="pdf-scout-name"></span><br>
+                    <strong>Data:</strong> <span id="pdf-observation-date"></span>
+                </div>
+            </header>
+
+            <h1 class="pdf-main-title">RELAZIONE TECNICA GIOCATORE</h1>
+
+            <!-- Sezione Dati Anagrafici e Ruolo -->
+            <section class="pdf-section">
+                <div class="pdf-section-title">Anagrafica e Ruolo</div>
+                <div class="pdf-grid-2-cols">
+                    <table class="pdf-info-table">
+                        <tr><td>Nome Cognome</td><td id="pdf-nome"></td></tr>
+                        <tr><td>Anno Nascita</td><td id="pdf-annoNascita"></td></tr>
+                        <tr><td>Età</td><td id="pdf-eta"></td></tr>
+                        <tr><td>Altezza</td><td id="pdf-altezza"></td></tr>
+                        <tr><td>Piede</td><td id="pdf-piede"></td></tr>
+                        <tr><td>Nazionalità</td><td id="pdf-nazionalita"></td></tr>
+                    </table>
+                    <table class="pdf-info-table">
+                        <tr><td>Club Attuale</td><td id="pdf-club"></td></tr>
+                        <tr><td>Status Club</td><td id="pdf-club-status"></td></tr>
+                        <tr><td>Ruolo Primario</td><td id="pdf-ruolo-primario"></td></tr>
+                        <tr><td>Ruolo Secondario</td><td id="pdf-ruolo-secondario"></td></tr>
+                        <tr><td>Altro Ruolo</td><td id="pdf-altro-ruolo"></td></tr>
+                        <tr><td>Archetipo</td><td id="pdf-archetipo"></td></tr>
+                    </table>
+                </div>
+            </section>
+
+             <!-- Sezione Valutazioni -->
+            <section class="pdf-section">
+                <div class="pdf-section-title">Valutazione Parametri</div>
+                <div class="pdf-skills-container">
+                    <div id="pdf-skills-col-1"></div>
+                    <div id="pdf-skills-col-2"></div>
+                </div>
+            </section>
+
+            <!-- Sezione Visuals -->
+            <section class="pdf-section">
+                <div class="pdf-section-title">Profilo Visivo</div>
+                <div class="pdf-visuals-container">
+                    <div class="pdf-chart-container">
+                        <h3 class="font-semibold mb-2 text-sm">Grafico Radar</h3>
+                        <img id="pdf-radar-img" src="" alt="Grafico Radar">
+                    </div>
+                    <div class="pdf-pitch-container">
+                        <h3 class="font-semibold mb-2 text-sm">Posizionamento in Campo</h3>
+                        <img id="pdf-pitch-img" src="" alt="Campo da calcio posizioni">
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Sezione Note e Giudizio -->
+            <section class="pdf-section">
+                <div class="pdf-grid-2-cols">
+                    <div>
+                        <div class="pdf-section-title">Note e Analisi</div>
+                        <div id="pdf-notes" class="pdf-notes-box"></div>
+                    </div>
+                    <div>
+                        <div class="pdf-section-title">Giudizio Finale</div>
+                        <div class="pdf-judgement-container">
+                            <div class="pdf-judgement-item">
+                                <div class="label">Abilità Attuale</div>
+                                <div class="value" id="pdf-abilita-attuale"></div>
+                            </div>
+                            <div class="pdf-judgement-item">
+                                <div class="label">Abilità Potenziale</div>
+                                <div class="value" id="pdf-abilita-potenziale"></div>
+                            </div>
+                             <div class="pdf-judgement-item">
+                                <div class="label">Giudizio Finale</div>
+                                <div class="value final-judgement" id="pdf-giudizio-finale"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- ELEMENTI DOM ---
+            const sliders = document.querySelectorAll('.skill-slider');
+            const ruoloPrimarioSelect = document.getElementById('ruolo-primario');
+            const ruoloSecondarioSelect = document.getElementById('ruolo-secondario');
+            const altroRuoloSelect = document.getElementById('altro-ruolo');
+            const archetipoSelect = document.getElementById('archetipo');
+            const tecnicaDefaultDiv = document.getElementById('tecnica-default');
+            const tecnicaPortiereDiv = document.getElementById('tecnica-portiere');
+            const annoNascitaInput = document.getElementById('annoNascita');
+            const etaInput = document.getElementById('eta');
+            const saveButton = document.getElementById('save-report-btn');
+            const summaryContainer = document.getElementById('summary-container');
+            const exportErrorDiv = document.getElementById('export-error');
+            const scoutInput = document.getElementById('scout');
+            const dataInput = document.getElementById('data-osservazione');
+            const nationalTeamCheckbox = document.getElementById('has-national-team');
+            const nationalStatusContainer = document.getElementById('national-status-container');
+            const markerPrimario = document.getElementById('marker-primario');
+            const markerSecondario = document.getElementById('marker-secondario');
+            const markerAltro = document.getElementById('marker-altro');
+            const tacticalModuleSelect = document.getElementById('tactical-module');
+            const tacticalStyleInput = document.getElementById('tactical-style');
+            const aiButtons = document.querySelectorAll('.ai-btn');
+            const summaryButtons = document.querySelectorAll('.summary-btn');
+            const loaderContainer = document.getElementById('loader-container');
+            const noteTextarea = document.getElementById('note');
+            const modalOverlay = document.getElementById('ai-modal-overlay');
+            const modalTitle = document.getElementById('modal-title');
+            const modalContent = document.getElementById('modal-content');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const performanceSelects = document.querySelectorAll('.performance-select');
+
+            let radarChart;
+
+            // --- DATI E MAPPE ---
+            const ruoli = ["-", "Portiere", "Difensore centrale", "Terzino destro", "Terzino sinistro", "Mediano", "Centrocampista centrale", "Trequartista", "Ala destra", "Ala sinistra", "Attaccante centrale"];
+            
+            const archetipiPerRuolo = {
+                'Portiere': ['Portiere', 'Portiere Libero'],
+                'Terzino': ['Terzino Difensivo', 'Terzino Offensivo', 'Quinto'],
+                'Difensore centrale': ['Stopper', 'Difensore che Imposta', 'Braccetto'],
+                'Mediano': ['Regista/Play', 'Centromediano Metodista', 'Centrocampista Difensivo'],
+                'Centrocampista centrale': ['Centrocampista', 'Mezzala', 'Box to Box', 'Centrocampista Difensivo'],
+                'Trequartista': ['10', 'Falso 9', 'Seconda Punta'],
+                'Ala': ['Ala Classica', 'Ala Invertita', 'Attaccante Esterno', 'Seconda Punta', 'Quinto'],
+                'Attaccante centrale': ['Centravanti', 'Uomo d\'Area', 'Falso 9', 'Seconda Punta']
+            };
+
+            const posizioniCampo = {
+                'Portiere': { top: '92%', left: '50%' }, 'Difensore centrale': { top: '80%', left: '50%' },
+                'Terzino destro': { top: '75%', left: '85%' }, 'Terzino sinistro': { top: '75%', left: '15%' },
+                'Mediano': { top: '60%', left: '50%' }, 'Centrocampista centrale': { top: '50%', left: '50%' },
+                'Trequartista': { top: '35%', left: '50%' }, 'Ala destra': { top: '30%', left: '85%' },
+                'Ala sinistra': { top: '30%', left: '15%' }, 'Attaccante centrale': { top: '15%', left: '50%' }
+            };
+
+            // --- FUNZIONI ---
+            function setPerformanceColor(selectElement) {
+                const selectedValue = selectElement.value;
+                selectElement.classList.remove('bg-green-400', 'bg-lime-300', 'bg-yellow-300', 'bg-red-400', 'text-black');
+                if (selectedValue === 'Dominante') {
+                    selectElement.classList.add('bg-green-400', 'text-black');
+                } else if (selectedValue === 'Sopra la media') {
+                    selectElement.classList.add('bg-lime-300', 'text-black');
+                } else if (selectedValue === 'Nella media') {
+                    selectElement.classList.add('bg-yellow-300', 'text-black');
+                } else if (selectedValue === 'Sotto media') {
+                    selectElement.classList.add('bg-red-400', 'text-black');
+                }
+            }
+            
+            function getSliderColor(value) {
+                if (value < 3) return '#ef4444'; // red-500
+                if (value < 5) return '#f97316'; // orange-500
+                if (value < 6) return '#facc15'; // yellow-400
+                if (value < 8) return '#84cc16'; // lime-500
+                return '#22c55e'; // green-500
+            }
+
+            function updateSliderAppearance(slider) {
+                const value = parseFloat(slider.value).toFixed(1);
+                const valueSpan = slider.nextElementSibling;
+                if (valueSpan) { valueSpan.textContent = value; }
+                const color = getSliderColor(value);
+                const percentage = (value / slider.max) * 100;
+                slider.style.background = `linear-gradient(to right, ${color} ${percentage}%, #e0e0e0 ${percentage}%)`;
+            }
+
+            function updateRadarChart() {
+                const calculateAverage = (paramIds) => {
+                    let total = 0, count = 0;
+                    const categoryIds = {
+                        difesa: ['tackling', 'posizionamento-difensivo', 'concentrazione', 'anticipazioni', 'gestione-pressione', 'forza'],
+                        attacco: ['tiro', 'finalizzazione', 'posizionamento-offensivo'],
+                        velocita: ['frequenza-passo', 'velocita', 'work-rate', 'agilita'],
+                        forza_cat: ['resistenza', 'forza', 'potenza'],
+                        tecnica: ['controllo-palla', 'dribbling', 'colpo-testa'],
+                        regia: ['passaggio', 'lettura-gioco', 'decision-making'],
+                        mentale: ['mentalita-competitiva', 'leadership', 'resilienza', 'coraggio', 'spirito-squadra'],
+                    };
+                    categoryIds[paramIds].forEach(id => {
+                        const slider = document.getElementById(id);
+                        if (slider && slider.offsetParent !== null) { total += parseFloat(slider.value); count++; }
+                    });
+                    return count > 0 ? (total / count).toFixed(2) : 0;
+                };
+                const data = {
+                    labels: ['Difesa', 'Attacco', 'Velocità', 'Forza', 'Tecnica', 'Regia', 'Mentale'],
+                    datasets: [{
+                        label: 'Valutazione Giocatore',
+                        data: [
+                            calculateAverage('difesa'), calculateAverage('attacco'),
+                            calculateAverage('velocita'), calculateAverage('forza_cat'),
+                            calculateAverage('tecnica'), calculateAverage('regia'),
+                            calculateAverage('mentale')
+                        ],
+                        fill: true, backgroundColor: 'rgba(30, 53, 99, 0.2)', borderColor: '#1e3563',
+                        pointBackgroundColor: '#1e3563', pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff', pointHoverBorderColor: '#1e3563'
+                    }]
+                };
+                const config = {
+                    type: 'radar', data: data,
+                    options: {
+                        responsive: true, maintainAspectRatio: true,
+                        scales: { r: {
+                            angleLines: { color: '#e0e0e0' }, grid: { color: '#e0e0e0' },
+                            pointLabels: { font: { size: 12, weight: 'bold' }, color: '#374151' },
+                            ticks: { backdropColor: 'rgba(255, 255, 255, 0.75)', color: '#4b5563', stepSize: 2, font: { weight: 'bold' } },
+                            suggestedMin: 0, suggestedMax: 10
+                        }},
+                        plugins: { legend: { display: false } }
+                    }
+                };
+                const ctx = document.getElementById('radarChart').getContext('2d');
+                if (radarChart) { radarChart.destroy(); }
+                radarChart = new Chart(ctx, config);
+            }
+
+            function popolaRuoliSelects() {
+                [ruoloPrimarioSelect, ruoloSecondarioSelect, altroRuoloSelect].forEach(select => {
+                    const selectedValue = select.value;
+                    select.innerHTML = '';
+                    ruoli.forEach(ruolo => {
+                        const option = document.createElement('option');
+                        option.value = ruolo;
+                        option.textContent = ruolo;
+                        select.appendChild(option);
+                    });
+                    select.value = selectedValue;
+                });
+            }
+
+            function aggiornaArchetipi() {
+                const ruoliSelezionati = [ruoloPrimarioSelect.value, ruoloSecondarioSelect.value, altroRuoloSelect.value].filter(r => r !== '-');
+                const archetipiDisponibili = new Set();
+                ruoliSelezionati.forEach(ruolo => {
+                    let key = ruolo.includes('Terzino') ? 'Terzino' : (ruolo.includes('Ala') ? 'Ala' : ruolo);
+                    if (archetipiPerRuolo[key]) {
+                        archetipiPerRuolo[key].forEach(arch => archetipiDisponibili.add(arch));
+                    }
+                });
+                const selectedArchetype = archetipoSelect.value;
+                archetipoSelect.innerHTML = '<option>-</option>';
+                archetipiDisponibili.forEach(arch => {
+                    const option = document.createElement('option');
+                    option.value = arch; option.textContent = arch;
+                    archetipoSelect.appendChild(option);
+                });
+                if (archetipiDisponibili.has(selectedArchetype)) { archetipoSelect.value = selectedArchetype; }
+            }
+            
+            function aggiornaCampo() {
+                const ruoliData = [
+                    { select: ruoloPrimarioSelect, marker: markerPrimario },
+                    { select: ruoloSecondarioSelect, marker: markerSecondario },
+                    { select: altroRuoloSelect, marker: markerAltro }
+                ];
+                ruoliData.forEach(item => {
+                    const ruoloSelezionato = item.select.value;
+                    if (ruoloSelezionato !== '-') {
+                        const pos = posizioniCampo[ruoloSelezionato];
+                        if (pos) {
+                            item.marker.style.top = pos.top; item.marker.style.left = pos.left;
+                            item.marker.style.display = 'block';
+                        }
+                    } else { item.marker.style.display = 'none'; }
+                });
+            }
+            
+            function gestisciCambioRuolo() {
+                const isPortiere = ruoloPrimarioSelect.value === 'Portiere';
+                tecnicaDefaultDiv.style.display = isPortiere ? 'none' : 'block';
+                tecnicaPortiereDiv.style.display = isPortiere ? 'block' : 'none';
+                sliders.forEach(updateSliderAppearance);
+                updateRadarChart();
+                aggiornaArchetipi();
+                aggiornaCampo();
+            }
+
+            function getReportDataAsString() {
+                let reportData = 'DATI GIOCATORE:\n';
+                reportData += `- Nome: ${document.getElementById('nome').value || 'N/A'}\n`;
+                reportData += `- Età: ${document.getElementById('eta').value || 'N/A'}\n`;
+                reportData += `- Altezza: ${document.getElementById('altezza').value || 'N/A'} cm\n`;
+                reportData += `- Nazionalità: ${document.getElementById('nazionalita').value || 'N/A'} (EU: ${document.getElementById('is-eu').checked ? 'Sì' : 'No'})\n`;
+                reportData += `- Club: ${document.getElementById('club').value || 'N/A'}\n`;
+                reportData += `- Ruolo Primario: ${ruoloPrimarioSelect.value || 'N/A'}\n`;
+                reportData += `- Archetipo: ${archetipoSelect.value || 'N/A'}\n\n`;
+                reportData += 'VALUTAZIONI (da 0 a 10):\n';
+                document.querySelectorAll('.param-slider').forEach(sliderContainer => {
+                    if (sliderContainer.offsetParent !== null) {
+                        const label = sliderContainer.querySelector('label').dataset.skillName;
+                        const value = sliderContainer.querySelector('input[type="range"]').value;
+                        reportData += `- ${label}: ${value}\n`;
+                    }
+                });
+                const finalJudgement = document.querySelector('input[name="giudizio"]:checked');
+                reportData += `\nGIUDIZIO FINALE: ${finalJudgement ? finalJudgement.value : 'N/A'}\n`;
+                return reportData;
+            }
+
+            async function callGeminiAPI(prompt) {
+                const apiKey = ""; // Lasciare vuoto
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`Errore API: ${response.statusText}`);
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                throw new Error("La risposta dell'AI era vuota.");
+            }
+            
+            function showModal(title, content) {
+                modalTitle.textContent = title;
+                let htmlContent = content.replace(/\*\*(.*?)\*\*/g, '<h4 class="font-bold text-lg mt-3">$1</h4>');
+                htmlContent = htmlContent.replace(/\n/g, '<br>');
+                modalContent.innerHTML = htmlContent;
+                modalOverlay.style.display = 'flex';
+            }
+
+            async function handleAIFeature(promptFunction, modalTitle) {
+                loaderContainer.style.display = 'block';
+                aiButtons.forEach(btn => btn.disabled = true);
+                summaryButtons.forEach(btn => btn.disabled = true);
+
+                if (modalTitle) {
+                    showModal(modalTitle, '<div class="loader mx-auto"></div>');
+                } else {
+                    noteTextarea.value = 'Analisi in corso...';
+                    noteTextarea.disabled = true;
+                }
+
+                try {
+                    const prompt = promptFunction();
+                    const generatedText = await callGeminiAPI(prompt);
+                    if (modalTitle) {
+                        showModal(modalTitle, generatedText);
+                    } else {
+                        noteTextarea.value = generatedText;
+                    }
+                } catch (error) {
+                    console.error("Errore durante la chiamata AI:", error);
+                    const errorMessage = `Si è verificato un errore: ${error.message}`;
+                    if (modalTitle) {
+                        showModal(modalTitle, `<p class="text-red-600">${errorMessage}</p>`);
+                    } else {
+                        noteTextarea.value = errorMessage;
+                    }
+                } finally {
+                    loaderContainer.style.display = 'none';
+                    aiButtons.forEach(btn => btn.disabled = false);
+                    summaryButtons.forEach(btn => btn.disabled = false);
+                    noteTextarea.disabled = false;
+                }
+            }
+
+            function generatePitchImage() {
+                const canvas = document.createElement('canvas');
+                const aspectRatio = 7 / 10;
+                canvas.width = 350;
+                canvas.height = canvas.width / aspectRatio;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = '#1e3563';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height / 2);
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width * 0.125, 0, 2 * Math.PI);
+                ctx.stroke();
+                const penaltyBoxWidth = canvas.width * 0.6;
+                const penaltyBoxHeight = canvas.height * 0.2;
+                ctx.strokeRect((canvas.width - penaltyBoxWidth) / 2, 0, penaltyBoxWidth, penaltyBoxHeight);
+                ctx.strokeRect((canvas.width - penaltyBoxWidth) / 2, canvas.height - penaltyBoxHeight, penaltyBoxWidth, penaltyBoxHeight);
+
+                const drawMarker = (pos, size, color) => {
+                    if (!pos) return;
+                    const x = parseFloat(pos.left) / 100 * canvas.width;
+                    const y = parseFloat(pos.top) / 100 * canvas.height;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, 2 * Math.PI);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                };
+
+                const r1 = ruoloPrimarioSelect.value;
+                if (r1 !== '-') drawMarker(posizioniCampo[r1], 12, '#13f688');
+                const r2 = ruoloSecondarioSelect.value;
+                if (r2 !== '-') drawMarker(posizioniCampo[r2], 10, '#d3f8c3');
+                const r3 = altroRuoloSelect.value;
+                if (r3 !== '-') drawMarker(posizioniCampo[r3], 8, '#efffe8');
+
+                return canvas.toDataURL('image/png');
+            }
+            
+            function populateTemplate() {
+                 const fill = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerText = value || '-';
+                };
+                
+                fill('pdf-scout-name', scoutInput.value);
+                const dateRaw = dataInput.value;
+                const dateObj = new Date(dateRaw);
+                const formattedDateForHeader = dateObj.toLocaleDateString('it-IT', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                fill('pdf-observation-date', formattedDateForHeader);
+
+                fill('pdf-nome', document.getElementById('nome').value);
+                fill('pdf-annoNascita', document.getElementById('annoNascita').value);
+                fill('pdf-eta', document.getElementById('eta').value);
+                fill('pdf-altezza', document.getElementById('altezza').value ? `${document.getElementById('altezza').value} cm` : '-');
+                fill('pdf-piede', document.getElementById('piede').value);
+                const naz = document.getElementById('nazionalita').value;
+                const isEu = document.getElementById('is-eu').checked;
+                fill('pdf-nazionalita', `${naz}${isEu ? ' (EU)' : ''}`);
+                
+                fill('pdf-club', document.getElementById('club').value);
+                fill('pdf-club-status', document.getElementById('club-status').value);
+                fill('pdf-ruolo-primario', ruoloPrimarioSelect.value);
+                fill('pdf-ruolo-secondario', ruoloSecondarioSelect.value);
+                fill('pdf-altro-ruolo', altroRuoloSelect.value);
+                fill('pdf-archetipo', archetipoSelect.value);
+
+                fill('pdf-abilita-attuale', parseFloat(document.getElementById('abilita-attuale').value).toFixed(1));
+                fill('pdf-abilita-potenziale', parseFloat(document.getElementById('abilita-potenziale').value).toFixed(1));
+                const giudizio = document.querySelector('input[name="giudizio"]:checked');
+                fill('pdf-giudizio-finale', giudizio ? giudizio.value : '-');
+
+                fill('pdf-notes', noteTextarea.value);
+
+                const skillCols = [document.getElementById('pdf-skills-col-1'), document.getElementById('pdf-skills-col-2')];
+                skillCols.forEach(c => c.innerHTML = '');
+
+                const skillCategories = document.querySelectorAll('#parameters-evaluation > div[id$="-container"]');
+                let colIndex = 0;
+                skillCategories.forEach(categoryContainer => {
+                    const titleEl = categoryContainer.querySelector('h2');
+                    const paramsEl = categoryContainer.querySelector('div[id$="-params"]');
+                    
+                    if (paramsEl.offsetParent === null) return;
+
+                    const categoryWrapper = document.createElement('div');
+                    categoryWrapper.innerHTML = `
+                        <div class="pdf-skill-category-title">${titleEl.textContent}</div>
+                        <table class="pdf-skill-table">
+                            <tbody></tbody>
+                        </table>
+                    `;
+                    const tbody = categoryWrapper.querySelector('tbody');
+
+                    paramsEl.querySelectorAll('.param-slider').forEach(param => {
+                        if (param.offsetParent !== null) {
+                            const label = param.querySelector('label').dataset.skillName;
+                            const value = parseFloat(param.querySelector('input').value);
+                            const color = getSliderColor(value);
+                            
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${label}</td>
+                                <td><div class="pdf-value-box" style="background-color:${color};">${value.toFixed(1)}</div></td>
+                            `;
+                            tbody.appendChild(row);
+                        }
+                    });
+                    skillCols[colIndex % 2].appendChild(categoryWrapper);
+                    colIndex++;
+                });
+
+                document.getElementById('pdf-radar-img').src = radarChart.toBase64Image();
+                document.getElementById('pdf-pitch-img').src = generatePitchImage();
+            }
+
+            function displaySummary() {
+                 if (!scoutInput.value.trim() || !dataInput.value) {
+                    exportErrorDiv.textContent = 'Compilare i campi "Scout" e "Data Osservazione" per salvare.';
+                    [scoutInput, dataInput].forEach(el => el.classList.add('border-red-500'));
+                    return;
+                }
+                exportErrorDiv.textContent = '';
+                [scoutInput, dataInput].forEach(el => el.classList.remove('border-red-500'));
+
+                populateTemplate();
+
+                const templateNode = document.getElementById('pdf-export-template').firstElementChild;
+                summaryContainer.innerHTML = ''; // Pulisce il contenitore
+                summaryContainer.appendChild(templateNode.cloneNode(true)); // Aggiunge il sommario
+
+                // Aggiunge il bottone di esportazione sotto il sommario
+                const pdfExportButton = document.createElement('button');
+                pdfExportButton.id = 'dynamic-export-pdf-btn';
+                pdfExportButton.textContent = 'Esporta Report in PDF';
+                pdfExportButton.className = 'bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 transition-all duration-300 shadow-lg mt-6';
+                
+                summaryContainer.appendChild(pdfExportButton);
+                summaryContainer.classList.remove('hidden');
+
+                pdfExportButton.addEventListener('click', () => {
+                    const summaryContent = summaryContainer.firstElementChild;
+                    const dateRaw = dataInput.value;
+                    const birthYear = document.getElementById('annoNascita').value || 'N/A';
+                    const playerName = (document.getElementById('nome').value || 'giocatore').replace(/ /g, '_');
+                    const reportDate = dateRaw ? dateRaw.replace(/-/g, '') : 'N/D';
+                    const filename = `${birthYear}_${playerName}_${reportDate}.pdf`;
+                    
+                    const opt = {
+                        margin: 0,
+                        filename: filename,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+                    html2pdf().from(summaryContent).set(opt).save();
+                });
+
+                // Scrolla fino al sommario
+                summaryContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            // --- EVENT LISTENERS ---
+            performanceSelects.forEach(select => {
+                select.addEventListener('change', () => setPerformanceColor(select));
+            });
+
+            document.querySelectorAll('.role-selector').forEach(select => { select.addEventListener('change', gestisciCambioRuolo); });
+            sliders.forEach(slider => {
+                updateSliderAppearance(slider);
+                slider.addEventListener('input', () => { updateSliderAppearance(slider); updateRadarChart(); });
+            });
+            annoNascitaInput.addEventListener('input', () => {
+                const anno = parseInt(annoNascitaInput.value);
+                etaInput.value = (anno && anno > 1950 && anno <= new Date().getFullYear()) ? new Date().getFullYear() - anno : '';
+            });
+            nationalTeamCheckbox.addEventListener('change', () => {
+                nationalStatusContainer.style.display = nationalTeamCheckbox.checked ? 'flex' : 'none';
+            });
+            
+            // Listeners Funzioni AI (invariati)
+            document.getElementById('generate-analysis-btn').addEventListener('click', () => handleAIFeature(() => `Sei un osservatore di calcio professionista. Analizza i seguenti dati e scrivi un report descrittivo dettagliato nel campo "Note", evidenziando punti di forza, aree di miglioramento e potenziale, considerando ruolo e archetipo.\n\nDati:\n${getReportDataAsString()}`));
+            document.getElementById('compare-player-btn').addEventListener('click', () => handleAIFeature(() => `Sei un direttore sportivo. Basandoti su questo report, suggerisci 2-3 calciatori professionisti (presenti o passati) con stile di gioco simile. Fornisci una breve motivazione per ogni confronto. Formatta con Markdown, usando il grassetto per i nomi.\n\nDati:\n${getReportDataAsString()}`, 'Analisi Comparativa AI'));
+            document.getElementById('predict-evolution-btn').addEventListener('click', () => handleAIFeature(() => `Sei un esperto di talent development. Analizzando età, altezza, ruolo e valutazioni, prevedi 1-2 possibili evoluzioni di ruolo future per questo giocatore, con motivazioni tecniche.\n\nDati:\n${getReportDataAsString()}`, 'Previsione Evoluzione Ruolo'));
+            document.getElementById('market-assessment-btn').addEventListener('click', () => handleAIFeature(() => `Sei un direttore sportivo esperto di calciomercato. Valuta il profilo di mercato di questo giocatore (età, nazionalità, abilità, potenziale). Fornisci una valutazione strategica qualitativa (es. 'profilo da top club', 'investimento per plusvalenza', etc.), non un valore numerico.\n\nDati:\n${getReportDataAsString()}`, 'Valutazione Potenziale di Mercato'));
+            document.getElementById('tactical-fit-btn').addEventListener('click', () => {
+                const module = tacticalModuleSelect.value; const style = tacticalStyleInput.value.trim();
+                if (module === '-' && style === '') { showModal('Errore', 'Seleziona un modulo o descrivi uno stile di gioco per l\'analisi di compatibilità.'); return; }
+                handleAIFeature(() => `Sei un analista tattico. Valuta la compatibilità (tactical fit) di questo giocatore con il seguente sistema di gioco: ${style || module}. Analizza come le sue qualità verrebbero esaltate, dove potrebbe faticare e quale sarebbe la sua posizione ideale in quel sistema.\n\nDati Giocatore:\n${getReportDataAsString()}`, 'Analisi Compatibilità Tattica');
+            });
+            document.getElementById('development-goals-btn').addEventListener('click', () => handleAIFeature(() => `Sei un preparatore atletico d'élite. Basandoti sulle aree di miglioramento di questo giocatore, genera 3-4 obiettivi di sviluppo specifici e misurabili per i prossimi 6 mesi. Sii concreto e orientato all'azione.\n\nDati:\n${getReportDataAsString()}`, 'Obiettivi di Sviluppo'));
+            summaryButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const audience = button.dataset.audience;
+                    let persona;
+                    switch(audience) {
+                        case 'Allenatore': persona = "Sei un capo scout che scrive una sintesi per l'allenatore della prima squadra. Focalizzati su aspetti tecnico-tattici, punti di forza e debolezze immediatamente utili per il campo."; break;
+                        case 'Dirigenza': persona = "Sei un direttore sportivo che presenta un profilo alla dirigenza. Enfatizza il potenziale, la valutazione strategica di mercato, la personalità e il possibile ritorno sull'investimento."; break;
+                        case 'Agente': persona = "Sei uno scout che prepara una nota per l'agente del giocatore. Evidenzia i principali 'selling points', i paragoni eccellenti e la traiettoria di carriera per valorizzarlo sul mercato."; break;
+                    }
+                    handleAIFeature(() => `${persona}\n\nBasandoti su tutti i dati del report, crea una sintesi concisa e mirata.\n\nDati:\n${getReportDataAsString()}`, `Sintesi per ${audience}`);
+                });
+            });
+
+            closeModalBtn.addEventListener('click', () => modalOverlay.style.display = 'none');
+            modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+
+            // Listener per il nuovo bottone di salvataggio
+            saveButton.addEventListener('click', displaySummary);
+
+            // --- INIZIALIZZAZIONE ---
+            popolaRuoliSelects();
+            gestisciCambioRuolo();
+        });
+    </script>
+</body>
+</html>
